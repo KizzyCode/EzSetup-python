@@ -1,0 +1,8 @@
+# Ignore .DS_Store
+.DS_Store
+
+
+# Ignore build results
+Cargo.lock
+target/
+build/
