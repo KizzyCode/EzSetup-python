@@ -71,9 +71,10 @@ class Script:
         """Creates a script task"""
         self._script = script
     
-    def exec(self, cwd):
+    def exec(self, cwd, environment={}):
         """Executes the script"""
-        result = subprocess.run(self._script, capture_output=False, shell=True, cwd=cwd, env=os.environ)
+        environment = { **os.environ, **environment }
+        result = subprocess.run(self._script, capture_output=False, shell=True, cwd=cwd, env=environment)
         result.check_returncode()
 
 
@@ -114,12 +115,14 @@ class Package:
     def install(self):
         """Builds and installs the package"""
         install_sh = self._make_path("install.sh")
-        Script(install_sh).exec(self._srcdir)
+        prefix = self._get_prefix()
+        Script(install_sh).exec(self._srcdir, environment={ "PREFIX": prefix })
 
     def uninstall(self):
         """Uninstalls the package"""
         uninstall_sh = self._make_path("uninstall.sh")
-        Script(uninstall_sh).exec(self._srcdir)
+        prefix = self._get_prefix()
+        Script(uninstall_sh).exec(self._srcdir, environment={ "PREFIX": prefix })
     
     def _find_srcdir(self):
         # List the toplevel entries within the package
@@ -145,6 +148,20 @@ class Package:
     def _make_path(self, entry):
         """Returns the path to `entry` within the source dir"""
         return os.path.join(self._srcdir, entry)
+
+    def _get_prefix(self):
+        """Determines a platform specific prefix"""
+        # Propagate the prefix from the environment
+        if "PREFIX" in os.environ:
+            return os.environ["prefix"]
+
+        # Determine the prefix automatically
+        if sys.platform.startswith("freebsd"):
+            return "/usr/local/"
+        elif sys.platform.startswith("darwin"):
+            return "/usr/local/"
+        else:
+            raise RuntimeError("Unable to find an appropriate prefix; please export `PREFIX` manually")
 
 
 class Cli:
