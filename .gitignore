@@ -3,6 +3,4 @@
 
 
 # Ignore build results
-Cargo.lock
-target/
-build/
+__pycache__/
