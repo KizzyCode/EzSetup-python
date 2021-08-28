@@ -89,6 +89,9 @@ class Package:
     _tempdir = None
     """The temporary dir"""
 
+    _srcdir = None
+    """The source directory"""
+
     def __init__(self, uri):
         """Initializes the package"""
         self._uri = uri
@@ -100,25 +103,48 @@ class Package:
         # Fetch the tarball
         tarball_data = UriResource(self._uri).fetch()
         self._tempfile.write(tarball_data)
+        self._tempfile.seek(0)
         
-        # Extract archive
+        # Extract archive and find sourcedir
         tarball = tarfile.open(fileobj=self._tempfile)
         tarball.extractall(path=self._tempdir.name)
+        self._srcdir = self._find_srcdir()
         return self
     
     def install(self):
         """Builds and installs the package"""
         install_sh = self._make_path("install.sh")
-        Script(install_sh).exec(self._tempdir.name)
+        Script(install_sh).exec(self._srcdir)
 
     def uninstall(self):
         """Uninstalls the package"""
         uninstall_sh = self._make_path("uninstall.sh")
-        Script(uninstall_sh).exec(self._tempdir.name)
+        Script(uninstall_sh).exec(self._srcdir)
+    
+    def _find_srcdir(self):
+        # List the toplevel entries within the package
+        entries = os.listdir(self._tempdir.name)
+        if len(entries) < 1:
+            raise RuntimeError("Packaged archive has no contents")
+        
+        # Check if the tar archive is flat
+        if "install.sh" in entries and "uninstall.sh" in entries:
+            return self._tempdir.name
+        
+        # Find the first top-level directory which contains both "install.sh" and "uninstall.sh"
+        paths = map(lambda entry: os.path.join(self._tempdir.name, entry), entries)
+        for directory in filter(os.path.isdir, paths):
+            subentries = os.listdir(directory)
+            if "install.sh" in subentries and "uninstall.sh" in subentries:
+                return directory
+        
+        # Package is invalid
+        raise RuntimeError("Failed to locate package scripts")
+
 
     def _make_path(self, entry):
-        """Returns the path to `entry` within the tempdir"""
-        return os.path.join(self._tempdir.name, entry)
+        """Returns the path to `entry` within the source dir"""
+        return os.path.join(self._srcdir, entry)
 
 
 class Cli:
